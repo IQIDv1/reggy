@@ -1,0 +1,24 @@
+{
+  "extends": ["next/core-web-vitals", "next/typescript"],
+  "rules": {
+    // Convert all strict rules to warnings
+    "no-unused-vars": "off",
+    "@typescript-eslint/no-unused-vars": "off",
+    "no-console": "off",
+    "strict": "warn"
+  }
+}
+
+// {
+//   "extends": ["next/core-web-vitals", "next/typescript"],
+//   "rules": {
+//     "no-unused-vars": "warn",
+//     "@typescript-eslint/no-unused-vars": "warn",
+//     "no-console": "off",
+//     "strict": "warn"
+//   },
+//   "parserOptions": {
+//     "project": "./tsconfig.json",
+//     "sourceType": "module"
+//   }
+// }
