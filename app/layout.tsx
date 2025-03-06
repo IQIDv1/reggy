@@ -12,10 +12,12 @@ const roboto = Roboto({
   display: "swap",
 });
 
-// TODO: add favicon
 export const metadata: Metadata = {
   title: `${APP_NAME} - Financial Aid Regulations AI Assistant`,
   description: APP_DESCRIPTION,
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({

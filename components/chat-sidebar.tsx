@@ -83,6 +83,7 @@ export default function ChatSidebar({
         </Button>
       </SidebarHeader>
       <SidebarMenu className="px-2 py-4">
+        {/* TODO: Sort by last message sent at */}
         {chatSessions.map((session) => (
           <SidebarMenuItem
             key={`chat-session-${session.id}`}

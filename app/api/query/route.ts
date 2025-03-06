@@ -29,10 +29,7 @@ export async function POST(
       .map((doc) => doc.pageContent)
       .join("\n\n");
 
-    // throw new AppError("Breakpoint", 400);
-
     // TODO: Avoid searching for docs if the query is not related to the search
-
     const { data: messagesHistory, error: messagesError } = await supabase
       .from("chat_messages")
       .select("role, content")
@@ -42,14 +39,26 @@ export async function POST(
       .limit(20);
 
     if (messagesError) throw messagesError;
+    
+    const systemMessage =
+      `You are ${APP_NAME}, an AI assistant specializing in financial aid regulations.` +
+      " Your primary role is to answer questions related to financial aid." +
+      " You may engage in basic human conversation (e.g., 'hi', 'how are you', 'what is your name')." +
+      " If a user asks for your name, respond with your name." +
+      " If a user shares their name, **remember it throughout the conversation** and use it naturally in responses." +
+      " If the user later asks for their name, recall it correctly." +
+      ' If a question is completely unrelated to financial aid **and is not part of basic conversation**, respond: "I\'m here to help with financial aid questions. Let me know if you need assistance with that!"' +
+      " Your responses must be **clear, concise, and strictly factual**." +
+      " Aim for a response length of **exactly 3 sentences**, but you may use **up to 5** if necessary." +
+      " Never exceed 5 sentences. If a shorter response is sufficient, keep it brief." +
+      " Ensure that your responses **naturally conclude** rather than stopping mid-sentence." +
+      " Base your responses **only** on the most relevant documents and extracted filters." +
+      " If you do not know the answer, state that clearly rather than making something up.";
 
     const messages: { role: MessageRole; content: string }[] = [
       {
         role: "system",
-        content: `You are ${APP_NAME}, an AI assistant specializing in financial aid regulations. 
-        Provide clear, concise, and **factual answers** in exactly **3-5 sentences**. 
-        Do not exceed this limit. Base your response only on the most relevant documents found and the extracted filters. 
-        If the answer is unknown, state that clearly instead of making something up.`,
+        content: systemMessage,
       },
       ...messagesHistory.map((message) => ({
         role: message.role,
@@ -83,17 +92,42 @@ export async function POST(
       model: completionsModel,
       messages,
       temperature: 0.5,
-      max_completion_tokens: 150,
+      max_completion_tokens: 180,
+      stop: [".\n"],
     });
 
-    const reggyResponse = completion.choices[0].message.content;
+    let reggyResponse = completion.choices[0].message.content;
 
     if (!reggyResponse) throw new AppError("Something went wrong", 500);
 
-    await supabase.from("chat_messages").insert([
-      { session_id, role: "user", content: query.trim() },
-      { session_id, role: "assistant", content: reggyResponse },
-    ]);
+    const sentences = reggyResponse.match(/[^.!?]+[.!?]/g) || [];
+    if (sentences.length > 5) {
+      reggyResponse = sentences.slice(0, 5).join(" ");
+    }
+
+    const { error: userMessageError } = await supabase
+      .from("chat_messages")
+      .insert({
+        session_id,
+        role: "user",
+        content: query.trim(),
+      });
+
+    if (userMessageError) {
+      throw new AppError("Message failed to send", 500);
+    }
+
+    const { error: reggyMessageError } = await supabase
+      .from("chat_messages")
+      .insert({
+        session_id,
+        role: "assistant",
+        content: reggyResponse,
+      });
+
+    if (reggyMessageError) {
+      throw new AppError("Reggy failed to respond", 500);
+    }
 
     // TODO: If this is the first message in the chat, rename the session to something relevant
 

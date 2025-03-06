@@ -20,7 +20,13 @@ import ChatMessageComponent from "./chat-message";
 import ChatTextarea from "./chat-textarea";
 import { ChatMessage, ChatSession, FeedbackRating, Profile } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
-import { API_ROUTES, APP_LOGO, APP_NAME, PAGE_ROUTES } from "@/lib/constants";
+import {
+  API_ROUTES,
+  APP_LOGO,
+  APP_LOGO_CIRCLE,
+  APP_NAME,
+  PAGE_ROUTES,
+} from "@/lib/constants";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ThemeToggle } from "./theme-toggle";
 import { ChatSkeleton } from "./chat-skeleton";
@@ -31,6 +37,8 @@ interface ChatProps {
 }
 
 export default function Chat({ user }: ChatProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [isAtBottom, setIsAtBottom] = useState<boolean>(true);
   const router = useRouter();
   const supabase = createClient();
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -70,6 +78,34 @@ export default function Chat({ user }: ChatProps) {
     }
   }, [isLoading]);
 
+  // Track if the user is at the bottom of the chat
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const isUserAtBottom =
+        container.scrollHeight - container.scrollTop <=
+        container.clientHeight + 50;
+      setIsAtBottom((prev) =>
+        prev !== isUserAtBottom ? isUserAtBottom : prev
+      );
+    };
+
+    container.addEventListener("scroll", handleScroll);
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Auto-scroll only when the user is at the bottom
+  useEffect(() => {
+    if (isAtBottom) {
+      containerRef.current?.scrollTo({
+        top: containerRef.current.scrollHeight,
+        behavior: "instant",
+      });
+    }
+  }, [messages, isAtBottom]);
+
   const fetchSessions = async (currentSessionId?: string) => {
     const { data, error: sessionsError } = await supabase
       .from("chat_sessions")
@@ -106,6 +142,14 @@ export default function Chat({ user }: ChatProps) {
     } else {
       setMessages(data);
       setIsSessionSwitching(false);
+      try {
+        const messagesContainer = document.getElementById(
+          "chat-messages-container"
+        );
+        if (messagesContainer) {
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+      } catch (error) {}
     }
   };
 
@@ -312,7 +356,7 @@ export default function Chat({ user }: ChatProps) {
             ))}
           {!(isInitialLoading || isSessionSwitching) && (
             <div className="flex flex-col h-full w-full">
-              <div className="flex-1 overflow-y-auto">
+              <div ref={containerRef} className="flex-1 overflow-y-auto">
                 {messages.length > 0 ? (
                   <div className="p-4 space-y-4">
                     {messages.map((message) => (
@@ -324,18 +368,19 @@ export default function Chat({ user }: ChatProps) {
                     ))}
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center h-full max-w-2xl mx-auto px-4 space-y-6">
-                    <div className="flex items-center gap-4">
+                  <div className="flex flex-col items-center justify-center h-full mx-auto px-4 space-y-6 max-w-2xl">
+                    <div className="flex items-center gap-4 flex-col">
                       <Image
                         src={APP_LOGO}
                         alt="IQ/ID Logo"
-                        width={120}
-                        height={40}
+                        width={0}
+                        height={0}
                         priority
                         className="h-10 w-auto"
                       />
-                      <h1 className="text-xl font-medium text-secondary dark:text-primary">
-                        {APP_NAME}, your regulatory research partner
+                      <h1 className="text-xl font-medium text-secondary dark:text-primary text-center">
+                        {APP_NAME}, find state and federal financial aid
+                        regulations for me
                       </h1>
                     </div>
                     {isLoading && (
@@ -399,6 +444,23 @@ export default function Chat({ user }: ChatProps) {
                   </div>
                 </>
               )}
+              <div className="flex items-center relative p-2 gap-2">
+                <Image
+                  src={APP_LOGO_CIRCLE}
+                  alt="IQ/ID Logo"
+                  width={30}
+                  height={30}
+                  // className="self-start"
+                />
+                <p className="text-xs mx-auto text-muted-foreground">
+                  Important Notice: All outputs provided by this AI product are
+                  for informational purposes only. They are not intended as a
+                  substitute for professional advice. Please do not rely on this
+                  tool for legal, tax, financial, or any other professional
+                  guidance. Always consult a qualified professional for advice
+                  in these areas.
+                </p>
+              </div>
             </div>
           )}
           {/* <div className="flex flex-col h-full w-full">

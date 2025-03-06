@@ -2,6 +2,7 @@ export const APP_NAME = "Reggy";
 export const APP_DESCRIPTION =
   "AI-powered assistant for navigating financial aid regulations";
 export const APP_LOGO = "/assets/images/IQID-logo.png";
+export const APP_LOGO_CIRCLE = "/assets/images/IQID-logo-circle.png";
 
 export const embeddingsModel = "text-embedding-ada-002";
 export const completionsModel = "gpt-4-turbo";
