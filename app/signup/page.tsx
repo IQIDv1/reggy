@@ -1,10 +1,8 @@
 "use client";
 
 import type React from "react";
-
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-// import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -17,20 +15,19 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { API_ROUTES, APP_LOGO, APP_NAME, PAGE_ROUTES } from "@/lib/constants";
 import { Loader2 } from "lucide-react";
 import { signupSchema } from "@/lib/schema";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function Signup() {
-  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
-    setError(null);
 
     const formData = new FormData(e.currentTarget);
     const formObject = Object.fromEntries(formData.entries());
@@ -44,13 +41,13 @@ export default function Signup() {
         errors.institution?._errors[0] ||
         errors.password?._errors[0] ||
         "Something went wrong";
-
-      setError(errorMessage);
+      toast({
+        title: errorMessage,
+        variant: "destructive",
+      });
       setIsLoading(false);
       return;
     }
-
-    setError(null);
 
     const response = await fetch(API_ROUTES.SIGNUP, {
       method: "POST",
@@ -65,7 +62,10 @@ export default function Signup() {
       router.refresh();
     } else {
       const data = await response.json();
-      setError(data.error);
+      toast({
+        title: data.error,
+        variant: "destructive",
+      });
       setIsLoading(false);
     }
   };
@@ -104,11 +104,6 @@ export default function Signup() {
               <Label htmlFor="password">Password</Label>
               <Input id="password" name="password" type="password" required />
             </div>
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? (
                 <>

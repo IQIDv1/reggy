@@ -4,7 +4,7 @@ import OpenAI from "openai";
 import { createClient } from "@/lib/supabase/server";
 import { AppError, handleApiError } from "@/lib/error-handler";
 import type { ApiResponse, MessageRole } from "@/lib/types";
-import { APP_NAME, completionsModel, embeddingsModel } from "@/lib/constants";
+import { APP_NAME, completionsModel } from "@/lib/constants";
 import { extractFilters } from "@/lib/utils";
 import { queryVectorStore } from "@/lib/vectorStore";
 
@@ -39,7 +39,7 @@ export async function POST(
       .limit(20);
 
     if (messagesError) throw messagesError;
-    
+
     const systemMessage =
       `You are ${APP_NAME}, an AI assistant specializing in financial aid regulations.` +
       " Your primary role is to answer questions related to financial aid." +

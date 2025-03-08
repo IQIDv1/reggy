@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Send } from "lucide-react";
 import { APP_NAME } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 
 interface ChatTextareaProps {
   onSendMessage: () => void;
@@ -39,14 +40,21 @@ export default function ChatTextarea({
   };
 
   return (
-    <div className="flex items-end space-x-2 bg-background rounded-lg border p-2 w-full">
+    <div
+      className={cn(
+        "flex items-end space-x-2 bg-background rounded-lg border p-2 w-full",
+        "transition-all focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background"
+      )}
+    >
       <Textarea
         ref={textareaRef}
         value={message}
         onChange={(e) => setMessage(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder={`Ask ${APP_NAME}`}
-        className="flex-1 resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+        className={
+          "flex-1 resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+        }
         style={{ minHeight: "40px", maxHeight: "200px" }}
       />
       <Button

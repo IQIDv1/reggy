@@ -1,22 +1,33 @@
-"use client"
+"use client";
 
-import { useToast } from "@/hooks/use-toast"
 import {
   Toast,
   ToastClose,
   ToastDescription,
-  ToastProvider,
+  ToastPrimitiveProvider,
   ToastTitle,
   ToastViewport,
-} from "@/components/ui/toast"
+} from "@/components/ui/toast";
+import { useToast } from "@/components/ui/use-toast";
+import { ToastProvider as ToastPositionProvider } from "@/components/ui/toast-context";
 
-export function Toaster() {
-  const { toasts } = useToast()
+export function Toaster({
+  position = "top-right",
+}: {
+  position?:
+    | "top-right"
+    | "top-left"
+    | "bottom-right"
+    | "bottom-left"
+    | "top-center"
+    | "bottom-center";
+}) {
+  const { toasts } = useToast();
 
   return (
-    <ToastProvider>
-      {toasts.map(function ({ id, title, description, action, ...props }) {
-        return (
+    <ToastPositionProvider defaultPosition={position}>
+      <ToastPrimitiveProvider>
+        {toasts.map(({ id, title, description, action, ...props }) => (
           <Toast key={id} {...props}>
             <div className="grid gap-1">
               {title && <ToastTitle>{title}</ToastTitle>}
@@ -27,9 +38,9 @@ export function Toaster() {
             {action}
             <ToastClose />
           </Toast>
-        )
-      })}
-      <ToastViewport />
-    </ToastProvider>
-  )
+        ))}
+        <ToastViewport />
+      </ToastPrimitiveProvider>
+    </ToastPositionProvider>
+  );
 }

@@ -13,12 +13,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Settings, LogOut, AlertCircle, Loader2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { LogOut, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import ChatMessageComponent from "./chat-message";
 import ChatTextarea from "./chat-textarea";
-import { ChatMessage, ChatSession, FeedbackRating, Profile } from "@/lib/types";
+import { ChatMessage, ChatSession, Profile } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
 import {
   API_ROUTES,
@@ -27,10 +27,10 @@ import {
   APP_NAME,
   PAGE_ROUTES,
 } from "@/lib/constants";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ThemeToggle } from "./theme-toggle";
 import { ChatSkeleton } from "./chat-skeleton";
 import Image from "next/image";
+import { useToast } from "./ui/use-toast";
 
 interface ChatProps {
   user: Profile;
@@ -48,7 +48,6 @@ export default function Chat({ user }: ChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [message, setMessage] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [thinkingText, setThinkingText] = useState<string>(
     `${APP_NAME} is thinking`
   );
@@ -56,113 +55,75 @@ export default function Chat({ user }: ChatProps) {
   const [editedSessionTitle, setEditedSessionTitle] = useState<string>("");
   const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
   const [isSessionSwitching, setIsSessionSwitching] = useState<boolean>(false);
+  const { toast } = useToast();
 
-  useEffect(() => {
-    fetchSessions();
-  }, []);
+  const fetchMessages = useCallback(
+    async (sessionId: string) => {
+      const { data, error: messagesError } = await supabase
+        .from("chat_messages")
+        .select("*")
+        .eq("session_id", sessionId)
+        .order("created_at", { ascending: true });
 
-  // useEffect(() => {
-  //   if (currentSession) {
-  //     fetchMessages(currentSession.id);
-  //   }
-  // }, [currentSession]);
-
-  useEffect(() => {
-    if (isLoading) {
-      const interval = setInterval(() => {
-        setThinkingText((prev) =>
-          prev.length < 20 ? prev + "." : `${APP_NAME} is thinking`
-        );
-      }, 500);
-      return () => clearInterval(interval);
-    }
-  }, [isLoading]);
-
-  // Track if the user is at the bottom of the chat
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const handleScroll = () => {
-      const isUserAtBottom =
-        container.scrollHeight - container.scrollTop <=
-        container.clientHeight + 50;
-      setIsAtBottom((prev) =>
-        prev !== isUserAtBottom ? isUserAtBottom : prev
-      );
-    };
-
-    container.addEventListener("scroll", handleScroll);
-    return () => container.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  // Auto-scroll only when the user is at the bottom
-  useEffect(() => {
-    if (isAtBottom) {
-      containerRef.current?.scrollTo({
-        top: containerRef.current.scrollHeight,
-        behavior: "instant",
-      });
-    }
-  }, [messages, isAtBottom]);
-
-  const fetchSessions = async (currentSessionId?: string) => {
-    const { data, error: sessionsError } = await supabase
-      .from("chat_sessions")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("updated_at", { ascending: false });
-    if (sessionsError) {
-      console.error("Error fetching sessions:", sessionsError);
-      setError("Failed to load chat sessions. Please try again.");
-    } else {
-      if (currentSessionId) {
-        const curr = data.find((s) => s.id === currentSessionId);
-        if (curr) {
-          setCurrentSession(curr);
-          await fetchMessages(curr.id);
-          setIsSessionSwitching(false);
-        }
+      if (messagesError) {
+        console.error("Error fetching messages:", messagesError);
+        toast({
+          title: "Failed to load messages. Please try again.",
+          variant: "destructive",
+        });
+      } else {
+        setMessages(data);
+        setIsSessionSwitching(false);
+        try {
+          const messagesContainer = document.getElementById(
+            "chat-messages-container"
+          );
+          if (messagesContainer) {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+          }
+        } catch (error) {}
       }
-      setSessions(data);
-      setIsInitialLoading(false);
-    }
-  };
+    },
+    [supabase, toast]
+  );
 
-  const fetchMessages = async (sessionId: string) => {
-    const { data, error: messagesError } = await supabase
-      .from("chat_messages")
-      .select("*")
-      .eq("session_id", sessionId)
-      .order("created_at", { ascending: true });
-
-    if (messagesError) {
-      console.error("Error fetching messages:", messagesError);
-      setError("Failed to load messages. Please try again.");
-    } else {
-      setMessages(data);
-      setIsSessionSwitching(false);
-      try {
-        const messagesContainer = document.getElementById(
-          "chat-messages-container"
-        );
-        if (messagesContainer) {
-          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  const fetchSessions = useCallback(
+    async (currentSessionId?: string) => {
+      const { data, error: sessionsError } = await supabase
+        .from("chat_sessions")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("updated_at", { ascending: false });
+      if (sessionsError) {
+        console.error("Error fetching sessions:", sessionsError);
+        toast({
+          title: "Failed to load chat sessions. Please try again.",
+          variant: "destructive",
+        });
+      } else {
+        if (currentSessionId) {
+          const curr = data.find((s) => s.id === currentSessionId);
+          if (curr) {
+            setCurrentSession(curr);
+            await fetchMessages(curr.id);
+            setIsSessionSwitching(false);
+          }
         }
-      } catch (error) {}
-    }
-  };
+        setSessions(data);
+        setIsInitialLoading(false);
+      }
+    },
+    [supabase, fetchMessages, user?.id, toast]
+  );
 
   const createOrSwitchSession = async (session?: ChatSession) => {
     if (session) {
       if (currentSession?.id === session.id) return;
       setIsSessionSwitching(true);
-      setError(null);
       setCurrentSession(session);
       setMessages([]);
       await fetchMessages(session.id);
     } else {
-      setError(null);
       const { data, error: sessionsError } = await supabase
         .from("chat_sessions")
         .insert({ user_id: user.id })
@@ -171,7 +132,10 @@ export default function Chat({ user }: ChatProps) {
 
       if (sessionsError) {
         console.error("Error creating new session:", sessionsError);
-        setError("Failed to create a new chat session. Please try again.");
+        toast({
+          title: "Failed to create a new chat session. Please try again.",
+          variant: "destructive",
+        });
       } else {
         setIsSessionSwitching(true);
         fetchSessions(data.id);
@@ -181,16 +145,18 @@ export default function Chat({ user }: ChatProps) {
 
   const handleDeleteSession = async (session: ChatSession) => {
     if (session) {
-      const { data, error: deleteError } = await supabase
+      const { error: deleteError } = await supabase
         .from("chat_sessions")
         .delete()
         .match({ id: session.id, user_id: user.id });
 
       if (deleteError) {
         console.error("Error deleting session:", deleteError);
-        setError("Failed to delete chat session. Please try again.");
+        toast({
+          title: "Failed to delete chat session. Please try again.",
+          variant: "destructive",
+        });
       } else {
-        setError(null);
         setCurrentSession(null);
         setMessages([]);
         fetchSessions();
@@ -201,7 +167,6 @@ export default function Chat({ user }: ChatProps) {
   const handleSendMessage = async () => {
     if (isLoading) return;
     try {
-      setError(null);
       setIsLoading(true);
       if (!message.trim()) throw new Error("Message cannot be empty");
 
@@ -239,33 +204,13 @@ export default function Chat({ user }: ChatProps) {
       setMessage("");
     } catch (err) {
       console.log(err);
-      setError(
-        err instanceof Error ? err.message : "An unexpected error occurred"
-      );
+      toast({
+        title:
+          err instanceof Error ? err.message : "An unexpected error occurred",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleFeedback = async (messageId: string, rating: FeedbackRating) => {
-    try {
-      const { error: feedbackError } = await supabase
-        .from("feedback")
-        .insert({
-          message_id: messageId,
-          user_id: user.id,
-          rating: rating,
-          // comment: validatedData.comment,
-        })
-        .select("*")
-        .single();
-
-      if (feedbackError) throw new Error("Failed to submit feedback");
-
-      // Optionally, update UI to show feedback was received
-    } catch (error) {
-      console.error("Error submitting feedback:", error);
-      setError("Failed to submit feedback. Please try again.");
     }
   };
 
@@ -283,7 +228,10 @@ export default function Chat({ user }: ChatProps) {
 
       if (sessionsError) {
         console.error("Error updating session title:", sessionsError);
-        setError("Failed to update session title. Please try again.");
+        toast({
+          title: "Failed to update session title. Please try again.",
+          variant: "destructive",
+        });
       } else {
         fetchSessions(editingSessionId);
       }
@@ -295,6 +243,51 @@ export default function Chat({ user }: ChatProps) {
     await supabase.auth.signOut();
     router.push(PAGE_ROUTES.LOGIN);
   };
+
+  useEffect(() => {
+    fetchSessions();
+  }, [fetchSessions]);
+
+  useEffect(() => {
+    if (isLoading) {
+      containerRef.current?.scrollTo({
+        top: containerRef.current.scrollHeight,
+        behavior: "instant",
+      });
+      const interval = setInterval(() => {
+        setThinkingText((prev) =>
+          prev.length < 20 ? prev + "." : `${APP_NAME} is thinking`
+        );
+      }, 500);
+      return () => clearInterval(interval);
+    }
+  }, [isLoading]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const isUserAtBottom =
+        container.scrollHeight - container.scrollTop <=
+        container.clientHeight + 50;
+      setIsAtBottom((prev) =>
+        prev !== isUserAtBottom ? isUserAtBottom : prev
+      );
+    };
+
+    container.addEventListener("scroll", handleScroll);
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    if (isAtBottom) {
+      containerRef.current?.scrollTo({
+        top: containerRef.current.scrollHeight,
+        behavior: "instant",
+      });
+    }
+  }, [messages, isAtBottom]);
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
@@ -333,7 +326,13 @@ export default function Chat({ user }: ChatProps) {
                   : "U"}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="w-[260px]">
+              <div className="px-2 py-1.5 border-b mb-1">
+                <p className="font-medium truncate">{user.name}</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {user.email}
+                </p>
+              </div>
               {/* <DropdownMenuItem>
                 <Settings className="mr-2 h-4 w-4" />
                 Settings
@@ -358,14 +357,24 @@ export default function Chat({ user }: ChatProps) {
             <div className="flex flex-col h-full w-full">
               <div ref={containerRef} className="flex-1 overflow-y-auto">
                 {messages.length > 0 ? (
-                  <div className="p-4 space-y-4">
+                  <div className="p-4">
                     {messages.map((message) => (
                       <ChatMessageComponent
                         key={`message-${message.id}`}
                         chatMessage={message}
-                        onHandleFeedback={handleFeedback}
+                        user_id={user.id}
                       />
                     ))}
+                    {isLoading && (
+                      <div className="text-left w-full mt-4">
+                        <div className="inline-flex items-center p-3 rounded-lg bg-muted text-black dark:bg-secondary dark:text-secondary-foreground">
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          <span className="inline-block w-36 overflow-hidden whitespace-nowrap border-r-2 pr-1 animate-typing">
+                            {thinkingText}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full mx-auto px-4 space-y-6 max-w-2xl">
@@ -393,15 +402,6 @@ export default function Chat({ user }: ChatProps) {
                         </div>
                       </div>
                     )}
-                    {error && (
-                      <div className="w-full">
-                        <Alert variant="destructive">
-                          <AlertCircle className="h-4 w-4" />
-                          <AlertTitle>Error</AlertTitle>
-                          <AlertDescription>{error}</AlertDescription>
-                        </Alert>
-                      </div>
-                    )}
                     <div className="w-full">
                       <ChatTextarea
                         message={message}
@@ -415,25 +415,6 @@ export default function Chat({ user }: ChatProps) {
               </div>
               {messages.length > 0 && (
                 <>
-                  {isLoading && (
-                    <div className="text-left w-full p-4">
-                      <div className="inline-flex items-center p-3 rounded-lg bg-muted text-black dark:bg-secondary dark:text-secondary-foreground">
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        <span className="inline-block w-36 overflow-hidden whitespace-nowrap border-r-2 pr-1 animate-typing">
-                          {thinkingText}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  {error && (
-                    <div className="w-full p-4">
-                      <Alert variant="destructive" className="w-fit">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>Error</AlertTitle>
-                        <AlertDescription>{error}</AlertDescription>
-                      </Alert>
-                    </div>
-                  )}
                   <div className="p-4 bg-background border-t">
                     <ChatTextarea
                       message={message}
@@ -450,7 +431,6 @@ export default function Chat({ user }: ChatProps) {
                   alt="IQ/ID Logo"
                   width={30}
                   height={30}
-                  // className="self-start"
                 />
                 <p className="text-xs mx-auto text-muted-foreground">
                   Important Notice: All outputs provided by this AI product are
@@ -463,48 +443,6 @@ export default function Chat({ user }: ChatProps) {
               </div>
             </div>
           )}
-          {/* <div className="flex flex-col h-full w-full">
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {isInitialLoading ? (
-                <ChatSkeleton />
-              ) : (
-                messages.map((message) => (
-                  <ChatMessageComponent
-                    key={`message-${message.id}`}
-                    chatMessage={message}
-                    onHandleFeedback={handleFeedback}
-                  />
-                ))
-              )}
-            </div>
-            {isLoading && (
-              <div className="text-left w-full p-4">
-                <div className="inline-flex items-center p-3 rounded-lg bg-muted text-black dark:bg-secondary dark:text-secondary-foreground">
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  <span className="inline-block w-36 overflow-hidden whitespace-nowrap border-r-2 pr-1 animate-typing">
-                    {thinkingText}
-                  </span>
-                </div>
-              </div>
-            )}
-            {error && (
-              <div className="w-full p-4">
-                <Alert variant="destructive" className="w-fit">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Error</AlertTitle>
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              </div>
-            )}
-            <div className="p-4 bg-background border-t">
-              <ChatTextarea
-                message={message}
-                setMessage={setMessage}
-                isSendDisabled={isLoading || !message.trim()}
-                onSendMessage={handleSendMessage}
-              />
-            </div>
-          </div> */}
         </main>
       </div>
     </div>
