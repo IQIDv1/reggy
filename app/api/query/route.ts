@@ -7,44 +7,9 @@ import type { ApiResponse, MessageRole } from "@/lib/types";
 import { APP_NAME, completionsModel } from "@/lib/constants";
 import { extractFilters } from "@/lib/utils";
 import { queryVectorStore } from "@/lib/vectorStore";
+import { generateBridgeEntry } from "@/lib/utils";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
-
-export const generateBridgeEntry = async (tag: string) => {
-  const prompt = `
-You are a financial aid policy expert. For the tag "${tag}", generate:
-
-1. 1-3 short but useful follow-up questions that a staff member might ask a student to clarify their situation.
-2. 1 recommended staff action (what the aid office should do next).
-
-Be concise and accurate. Respond in this JSON format:
-
-{
-  "follow_ups": ["...", "..."],
-  "recommended_action": "..."
-}
-`.trim();
-
-  const response = await openai.chat.completions.create({
-    model: "gpt-4",
-    temperature: 0.2,
-    messages: [
-      {
-        role: "system",
-        content: "You are a compliance-focused financial aid rules expert.",
-      },
-      { role: "user", content: prompt },
-    ],
-  });
-
-  try {
-    const parsed = JSON.parse(response.choices[0].message?.content || "{}");
-    return parsed;
-  } catch (err) {
-    console.error(`❌ Failed to parse response for tag: ${tag}`);
-    return null;
-  }
-};
 
 export async function POST(
   req: NextRequest
