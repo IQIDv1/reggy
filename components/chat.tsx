@@ -193,6 +193,8 @@ export default function Chat({ user }: ChatProps) {
         currSession = newSession;
       }
 
+      if (!currSession) throw new Error("Something went wrong.");
+
       const newDateISO = new Date().toISOString();
       setMessages((prev) => [
         ...prev,
@@ -201,7 +203,7 @@ export default function Chat({ user }: ChatProps) {
           created_at: newDateISO,
           id: `${Math.floor(Math.random() * (10000 - 1000 + 1)) + 1000}`,
           role: "user",
-          session_id: currSession.id,
+          session_id: currSession?.id || "",
           updated_at: newDateISO,
         },
       ]);
