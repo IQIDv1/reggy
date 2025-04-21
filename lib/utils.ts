@@ -1,7 +1,48 @@
+import "dotenv/config";
+
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { decode } from "html-entities";
-import { STATES } from "./constants";
+import { BRIDGE_TAGS, STATES } from "./constants";
+import OpenAI from "openai";
+
+export const generateBridgeEntry = async (tag: string) => {
+  const openAIKey = process.env.OPENAI_API_KEY!;
+  const openai = new OpenAI({ apiKey: openAIKey });
+  const prompt = `
+You are a financial aid policy expert. For the tag "${tag}", generate:
+
+1. 1-3 short but useful follow-up questions that a staff member might ask a student to clarify their situation.
+2. 1 recommended staff action (what the aid office should do next).
+
+Be concise and accurate. Respond in this JSON format:
+
+{
+  "follow_ups": ["...", "..."],
+  "recommended_action": "..."
+}
+`.trim();
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4",
+    temperature: 0.2,
+    messages: [
+      {
+        role: "system",
+        content: "You are a compliance-focused financial aid rules expert.",
+      },
+      { role: "user", content: prompt },
+    ],
+  });
+
+  try {
+    const parsed = JSON.parse(response.choices[0].message?.content || "{}");
+    return parsed;
+  } catch (err) {
+    console.error(`❌ Failed to parse response for tag: ${tag}`);
+    return null;
+  }
+};
 
 export function getCurrentAcademicYear(): string {
   const currentDate = new Date();
@@ -60,7 +101,9 @@ export function extractAcademicYear(
 //   filename: string;
 // }
 
-export const extractFilters = (query: string) => {
+export const extractFilters = async (query: string) => {
+  const openAIKey = process.env.OPENAI_API_KEY!;
+  const openai = new OpenAI({ apiKey: openAIKey });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const filters: Record<string, any> = {};
 
@@ -84,6 +127,24 @@ export const extractFilters = (query: string) => {
 
   if (matchedTypes.length) {
     filters["type"] = matchedTypes;
+
+    if (matchedTypes.includes("federal")) {
+      try {
+        const prompt = `Classify the following financial aid question into 1-3 tags from this list: ${BRIDGE_TAGS.join(
+          ", "
+        )}\n\nQuestion: ${query}\n\nRespond with a JSON array of tag strings.`;
+
+        const response = await openai.chat.completions.create({
+          model: "gpt-4",
+          temperature: 0.3,
+          messages: [{ role: "user", content: prompt, name: undefined }],
+        });
+
+        const tags = JSON.parse(response.choices[0].message?.content || "[]");
+        const primary_tag = tags[0] || "";
+        if (primary_tag) filters["tags"] = [primary_tag];
+      } catch (error) {}
+    }
   }
 
   // Extract state

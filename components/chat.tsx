@@ -168,7 +168,12 @@ export default function Chat({ user }: ChatProps) {
     if (isLoading) return;
     try {
       setIsLoading(true);
-      if (!message.trim()) throw new Error("Message cannot be empty");
+
+      const newMessage = message.trim();
+
+      if (!newMessage) throw new Error("Message cannot be empty");
+
+      setMessage("");
 
       let currSession: ChatSession | null = currentSession;
 
@@ -188,11 +193,26 @@ export default function Chat({ user }: ChatProps) {
         currSession = newSession;
       }
 
+      if (!currSession) throw new Error("Something went wrong.");
+
+      const newDateISO = new Date().toISOString();
+      setMessages((prev) => [
+        ...prev,
+        {
+          content: newMessage,
+          created_at: newDateISO,
+          id: `${Math.floor(Math.random() * (10000 - 1000 + 1)) + 1000}`,
+          role: "user",
+          session_id: currSession?.id || "",
+          updated_at: newDateISO,
+        },
+      ]);
+
       const response = await fetch(API_ROUTES.QUERY, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: message.trim(),
+          query: newMessage,
           session_id: currSession.id,
         }),
       });
@@ -201,7 +221,6 @@ export default function Chat({ user }: ChatProps) {
         throw new Error(`Failed to get response from ${APP_NAME}`);
 
       await fetchMessages(currSession.id);
-      setMessage("");
     } catch (err) {
       console.log(err);
       toast({
